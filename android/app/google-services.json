@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1011751852522",
+    "project_id": "parkspot-mobile",
+    "storage_bucket": "parkspot-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1011751852522:android:cdf93a4815eca38a99ba93",
+        "android_client_info": {
+          "package_name": "com.example.parkspot"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAf52G2Hcs6zBHF-_dFeMbL5EumdwgQ4KQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
