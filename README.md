@@ -1,17 +1,30 @@
-# parkspot
+# ParkSpot
 
-A new Flutter project.
+Aplikasi Sistem Informasi Ketersediaan Parkir Kampus Berbasis Mobile.
+
+ParkSpot merupakan aplikasi berbasis Flutter yang dirancang untuk membantu mahasiswa dan pengguna kampus mengetahui ketersediaan area parkir di lingkungan kampus.
+
+## Fitur Utama
+
+- Informasi ketersediaan parkir ICT dan PU.
+- Tampilan jumlah kapasitas, slot terisi, dan slot tersedia.
+- Pemindaian QR Code untuk proses parkir.
+- Riwayat aktivitas parkir.
+- Profil pengguna.
+- Dashboard admin untuk pemantauan parkir.
+
+## Teknologi
+
+- Flutter
+- Dart
+- Firebase Authentication
+- Cloud Firestore
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+Pastikan Flutter dan Dart sudah terpasang.
 
-A few resources to get you started if this is your first Flutter project:
+Clone repository:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+git clone https://github.com/nelapega/ParkSpot.git
