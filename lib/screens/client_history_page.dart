@@ -224,11 +224,20 @@ class ClientHistoryPage extends StatelessWidget {
               final rawStatus =
                   item['status'] as String? ?? 'active';
 
-              final isActive =
-                  rawStatus.toLowerCase() == 'active' ||
-                  exitTime == null;
+              final normalizedStatus = rawStatus.toLowerCase();
 
-              final status = isActive ? 'Masih Parkir' : 'Selesai';
+              final isAutoReset = normalizedStatus == 'auto_reset';
+
+              final isActive = !isAutoReset &&
+                  (normalizedStatus == 'active' || exitTime == null);
+
+              final status = isAutoReset
+                  ? 'Ditutup Otomatis'
+                  : isActive
+                      ? 'Masih Parkir'
+                      : normalizedStatus == 'completed'
+                          ? 'Selesai'
+                          : 'Tidak diketahui';
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 14),
@@ -285,7 +294,9 @@ class ClientHistoryPage extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: isActive
                                   ? Colors.orange.withValues(alpha: 0.12)
-                                  : Colors.green.withValues(alpha: 0.12),
+                                  : isAutoReset
+                                      ? Colors.amber.withValues(alpha: 0.15)
+                                      : Colors.green.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -295,7 +306,9 @@ class ClientHistoryPage extends StatelessWidget {
                                 fontWeight: FontWeight.w600,
                                 color: isActive
                                     ? Colors.orange.shade800
-                                    : Colors.green.shade700,
+                                    : isAutoReset
+                                        ? Colors.amber.shade900
+                                        : Colors.green.shade700,
                               ),
                             ),
                           ),

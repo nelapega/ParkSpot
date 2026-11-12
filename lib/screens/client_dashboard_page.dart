@@ -250,82 +250,109 @@ class _ClientDashboardPageState
     );
   }
 
-  Widget _buildNotificationStream(
-    String locationCode,
-    String fallbackName,
-  ) {
-    return StreamBuilder<
-        DocumentSnapshot<Map<String, dynamic>>>(
-      stream: _watchLocation(locationCode),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Text('Gagal memuat $fallbackName.');
-        }
 
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return Text('$fallbackName belum tersedia.');
-        }
+Widget _buildNotificationStream(
+  String locationCode,
+  String fallbackName,
+) {
+  return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    stream: _db
+        .collection('app_settings')
+        .doc('parking')
+        .snapshots(),
+    builder: (context, settingsSnapshot) {
+      final settings = settingsSnapshot.data?.data() ?? {};
 
-        final data = snapshot.data!.data()!;
-        final name = data['name'] as String? ?? fallbackName;
-        final capacity = _readNumber(data, 'capacity');
-        final occupied = _readNumber(data, 'occupied');
+      final fullParkingLimit =
+          settings['fullParkingLimit'] as String? ?? '10%';
 
-        if (capacity <= 0 || occupied < 0) {
-          return Text('Data $name tidak valid.');
-        }
+      return StreamBuilder<
+          DocumentSnapshot<Map<String, dynamic>>>(
+        stream: _watchLocation(locationCode),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Text('Gagal memuat $fallbackName.');
+          }
 
-        final safeOccupied = occupied.clamp(0, capacity);
-        final available = capacity - safeOccupied;
-        final ratio = safeOccupied / capacity;
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return Text('$fallbackName belum tersedia.');
+          }
 
-        final status = available == 0
-            ? 'PENUH'
-            : ratio >= 0.8
-                ? 'HAMPIR PENUH'
-                : 'MASIH TERSEDIA';
+          final data = snapshot.data!.data()!;
 
-        final color = available == 0
-            ? AppTheme.slotOccupied
-            : ratio >= 0.8
-                ? AppTheme.warning
-                : AppTheme.slotAvailable;
+          final name =
+              data['name'] as String? ?? fallbackName;
 
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
+          final capacity = _readNumber(data, 'capacity');
+          final occupied = _readNumber(data, 'occupied');
+
+          if (capacity <= 0 ||
+              occupied < 0 ||
+              occupied > capacity) {
+            return Text('Data $name tidak valid.');
+          }
+
+          final available = capacity - occupied;
+          final ratio = occupied / capacity;
+
+          // MENENTUKAN BATAS HAMPIR PENUH
+          final isAlmostFull = available > 0 &&
+              (fullParkingLimit == '5 slot'
+                  ? available <= 5
+                  : fullParkingLimit == '5%'
+                      ? ratio >= 0.95
+                      : ratio >= 0.90);
+
+          final status = available == 0
+              ? 'PENUH'
+              : isAlmostFull
+                  ? 'HAMPIR PENUH'
+                  : 'MASIH TERSEDIA';
+
+          final color = available == 0
+              ? AppTheme.slotOccupied
+              : isAlmostFull
+                  ? AppTheme.warning
+                  : AppTheme.slotAvailable;
+
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                '$available slot tersedia dari $capacity slot.',
-              ),
-              const SizedBox(height: 4),
-              Text(
-                status,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
+                const SizedBox(height: 5),
+                Text(
+                  '$available slot tersedia dari $capacity slot.',
                 ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+                const SizedBox(height: 4),
+                Text(
+                  status,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 
   // BERANDA CLIENT
   Widget _buildHome() {

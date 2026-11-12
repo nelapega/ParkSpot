@@ -62,3 +62,50 @@ firebase-adminsdk-*.json
 .firebase/
 firebase-debug.log
 firestore-debug.log
+
+
+# ==========================================
+# LOCAL ENVIRONMENT & SECRET FILES
+# ==========================================
+
+.env
+.env.*
+!.env.example
+
+# Firebase Service Account
+**/serviceAccount*.json
+**/service-account*.json
+**/*firebase-adminsdk*.json
+
+# Server credentials
+**/service-role*.json
+**/credentials*.json
+**/private-key*.json
+*.pem
+*.p12
+*.pfx
+*.keystore
+*.jks
+key.properties
+
+# Supabase local secrets
+supabase/.env
+supabase/.temp/
+
+# ==========================================
+# LOCAL DEVELOPMENT FILES
+# ==========================================
+
+android/local.properties
+*.log
+*.tmp
+
+# ==========================================
+# GENERATED FILES
+# ==========================================
+
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/

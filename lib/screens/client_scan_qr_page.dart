@@ -1,7 +1,9 @@
-
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../theme/app_theme.dart';
+import '../services/gps_location_service.dart';
+import '../constants/parking_location_config.dart';
+import '../services/parking_transaction_service.dart';
 
 class ClientScanQRPage extends StatelessWidget {
   const ClientScanQRPage({super.key});
@@ -40,10 +42,51 @@ class ClientScanQRPage extends StatelessWidget {
             'Pindai kode QR di area parkir ICT atau PU '
             'untuk mencatat kendaraan masuk dan keluar.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.blueGrey,
-              height: 1.6,
-              fontSize: 13,
+            style: TextStyle(color: Colors.blueGrey, height: 1.6, fontSize: 13),
+          ),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F1FF),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.location_on_rounded,
+                  color: AppTheme.primaryBlue,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Validasi Lokasi GPS',
+                        style: TextStyle(
+                          color: AppTheme.darkBlue,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Pemindaian QR hanya dapat dilakukan '
+                        'dalam radius ${ParkingLocationConfig.radiusInMeters.toStringAsFixed(0)} meter '
+                        'dari lokasi parkir ICT atau PU.',
+                        style: const TextStyle(
+                          color: Colors.blueGrey,
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 28),
@@ -64,34 +107,144 @@ class ClientScanQRPage extends StatelessWidget {
           const Text(
             'Arahkan kamera ke kode QR parkir.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.blueGrey,
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.blueGrey),
           ),
         ],
       ),
     );
   }
 
-  static Future<void> _openScanner(
-    BuildContext context,
-    String action,
-  ) async {
+  static Future<void> _openScanner(BuildContext context, String action) async {
     final result = await Navigator.push<String>(
       context,
-      MaterialPageRoute(
-        builder: (_) => _QRScannerPage(action: action),
-      ),
+      MaterialPageRoute(builder: (_) => _QRScannerPage(action: action)),
     );
 
     if (!context.mounted || result == null) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('QR berhasil dipindai: $result'),
-      ),
-    );
+    // VALIDASI FORMAT QR
+    final parts = result
+        .split('|')
+        .map((part) => part.trim().toUpperCase())
+        .toList();
+
+    final isValid =
+        parts.length == 3 &&
+        parts[0] == 'PARKSPOT' &&
+        ['ICT', 'PU'].contains(parts[1]) &&
+        parts[2] == action;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (!isValid) {
+      messenger.showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.red,
+          content: Text('QR tidak valid atau tidak sesuai aktivitas.'),
+        ),
+      );
+      return;
+    }
+
+    final parkingLocation = ParkingLocationConfig.getLocation(parts[1]);
+
+    if (parkingLocation == null) return;
+
+    final gpsService = GpsLocationService();
+
+    try {
+      // TAHAP 1: MEMERIKSA GPS
+      messenger.showSnackBar(
+        const SnackBar(
+          duration: Duration(seconds: 30),
+          content: Text('Sedang memeriksa lokasi GPS...'),
+        ),
+      );
+
+      final position = await gpsService.getCurrentPosition();
+
+      final distance = gpsService.calculateDistance(
+        currentPosition: position,
+        targetLatitude: parkingLocation.latitude,
+        targetLongitude: parkingLocation.longitude,
+      );
+
+      final isAllowed = gpsService.isWithinRadius(
+        distance: distance,
+        radiusInMeters: ParkingLocationConfig.radiusInMeters,
+      );
+
+      if (!context.mounted) return;
+
+      messenger.hideCurrentSnackBar();
+
+      // TAHAP 2: MENOLAK JIKA DI LUAR RADIUS
+      if (!isAllowed) {
+        messenger.showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            content: Text(
+              'Akses ditolak! Jarak kamu '
+              '${distance.round()} meter dari parkiran ${parts[1]}.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      // TAHAP 3: MENYIMPAN TRANSAKSI FIREBASE
+      messenger.showSnackBar(
+        const SnackBar(
+          duration: Duration(seconds: 30),
+          content: Text('Lokasi valid. Sedang menyimpan transaksi...'),
+        ),
+      );
+
+      final transactionService = ParkingTransactionService();
+
+      if (action == 'MASUK') {
+        await transactionService.enterParking(parts[1]);
+      } else {
+        await transactionService.exitParking(parts[1]);
+      }
+
+      if (!context.mounted) return;
+
+      messenger.hideCurrentSnackBar();
+
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 5),
+          content: Text(
+            action == 'MASUK'
+                ? 'Berhasil! Kendaraan masuk parkiran ${parts[1]}.'
+                : 'Berhasil! Kendaraan keluar parkiran ${parts[1]}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+
+      messenger.hideCurrentSnackBar();
+
+      String message = error.toString();
+
+      message = message.replaceFirst('Bad state: ', '');
+
+      if (message.contains('permission-denied')) {
+        message = 'Akses database ditolak. Periksa Firestore Rules.';
+      }
+
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+          content: Text(message),
+        ),
+      );
+    }
   }
 }
 
@@ -105,8 +258,7 @@ class _QRScannerPage extends StatefulWidget {
 }
 
 class _QRScannerPageState extends State<_QRScannerPage> {
-  final MobileScannerController _controller =
-      MobileScannerController();
+  final MobileScannerController _controller = MobileScannerController();
 
   bool _hasScanned = false;
 
@@ -200,11 +352,7 @@ class _ScanOption extends StatelessWidget {
             color: const Color(0xFFE8F1FF),
             borderRadius: BorderRadius.circular(13),
           ),
-          child: Icon(
-            icon,
-            color: AppTheme.primaryBlue,
-            size: 27,
-          ),
+          child: Icon(icon, color: AppTheme.primaryBlue, size: 27),
         ),
         title: Text(
           title,

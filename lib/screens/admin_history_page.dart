@@ -1,217 +1,268 @@
-
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../theme/app_theme.dart';
 
 class AdminHistoryPage extends StatefulWidget {
   const AdminHistoryPage({super.key});
 
   @override
-  State<AdminHistoryPage> createState() =>
-      _AdminHistoryPageState();
+  State<AdminHistoryPage> createState() => _AdminHistoryPageState();
 }
 
 class _AdminHistoryPageState extends State<AdminHistoryPage> {
   String _selectedFilter = 'Semua';
 
-  // DATA CONTOH
-  // Nantinya akan diganti dengan data dari database.
-  final List<_ParkingHistory> _history = const [
-    _ParkingHistory(
-      plate: 'BE 1234 XYZ',
-      location: 'Parkiran ICT',
-      entryTime: '08.15',
-      exitTime: '-',
-      status: 'Aktif',
-    ),
-    _ParkingHistory(
-      plate: 'BE 5678 ABC',
-      location: 'Parkiran PU',
-      entryTime: '07.45',
-      exitTime: '10.20',
-      status: 'Selesai',
-    ),
-    _ParkingHistory(
-      plate: 'BE 9012 DEF',
-      location: 'Parkiran ICT',
-      entryTime: '09.10',
-      exitTime: '-',
-      status: 'Aktif',
-    ),
-    _ParkingHistory(
-      plate: 'BE 3456 GHI',
-      location: 'Parkiran PU',
-      entryTime: '06.55',
-      exitTime: '09.30',
-      status: 'Selesai',
-    ),
-    _ParkingHistory(
-      plate: 'BE 7890 JKL',
-      location: 'Parkiran ICT',
-      entryTime: '08.30',
-      exitTime: '11.15',
-      status: 'Selesai',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final filteredHistory = _selectedFilter == 'Semua'
-        ? _history
-        : _history
-            .where((item) => item.status == _selectedFilter)
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('parking_transactions')
+          .orderBy('entryTime', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        // LOADING
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppTheme.primaryBlue),
+          );
+        }
+
+        // ERROR
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 45),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Gagal memuat riwayat parkir.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Periksa koneksi internet dan izin akses Firebase.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.blueGrey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${snapshot.error}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // MENGAMBIL DATA FIRESTORE
+        final history = snapshot.data!.docs
+            .map((document) => _ParkingHistory.fromMap(document.data()))
             .toList();
 
-    final activeCount =
-        _history.where((item) => item.status == 'Aktif').length;
+        // FILTER TRANSAKSI
+        final filteredHistory = _selectedFilter == 'Semua'
+            ? history
+            : history.where((item) => item.status == _selectedFilter).toList();
 
-    final completedCount =
-        _history.where((item) => item.status == 'Selesai').length;
+        // MENGHITUNG RINGKASAN
+        final activeCount = history
+            .where((item) => item.status == 'Aktif')
+            .length;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // JUDUL
-          Text(
-            'Riwayat Parkir',
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(
-                  color: AppTheme.darkBlue,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
+        final completedCount = history
+            .where((item) => item.status == 'Selesai')
+            .length;
 
-          const SizedBox(height: 6),
-
-          Text(
-            'Pantau catatan kendaraan masuk dan keluar.',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: Colors.blueGrey),
-          ),
-
-          const SizedBox(height: 22),
-
-          // RINGKASAN TRANSAKSI
-          Row(
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: _SummaryCard(
-                  title: 'Total Riwayat',
-                  count: _history.length,
-                  icon: Icons.receipt_long_rounded,
-                  color: AppTheme.primaryBlue,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _SummaryCard(
-                  title: 'Transaksi Aktif',
-                  count: activeCount,
-                  icon: Icons.local_parking_rounded,
-                  color: AppTheme.slotAvailable,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          _SummaryCard(
-            title: 'Transaksi Selesai',
-            count: completedCount,
-            icon: Icons.check_circle_outline_rounded,
-            color: AppTheme.darkBlue,
-          ),
-
-          const SizedBox(height: 26),
-
-          // FILTER
-          Text(
-            'Daftar Transaksi',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(
-                  color: AppTheme.darkBlue,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-
-          const SizedBox(height: 14),
-
-          Wrap(
-            spacing: 8,
-            children: [
-              _buildFilterChip('Semua'),
-              _buildFilterChip('Aktif'),
-              _buildFilterChip('Selesai'),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          // DAFTAR RIWAYAT
-          if (filteredHistory.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(30),
-                child: Text(
-                  'Belum ada transaksi untuk status ini.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.blueGrey),
-                ),
-              ),
-            )
-          else
-            ...filteredHistory.map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _HistoryCard(item: item),
-              ),
-            ),
-
-          const SizedBox(height: 16),
-
-          // CATATAN DATA
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F1FF),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: AppTheme.primaryBlue,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Data yang ditampilkan masih berupa contoh. '
-                    'Riwayat sebenarnya akan diambil dari database '
-                    'setelah sistem terhubung.',
-                    style: TextStyle(
-                      color: AppTheme.darkBlue,
-                      fontSize: 12,
-                      height: 1.5,
+              // JUDUL
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Riwayat Parkir',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: AppTheme.darkBlue,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Pantau catatan kendaraan masuk dan keluar.',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.blueGrey),
+                        ),
+                      ],
                     ),
                   ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5F7ED),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.circle, color: Colors.green, size: 8),
+                        SizedBox(width: 5),
+                        Text(
+                          'LIVE',
+                          style: TextStyle(
+                            color: Color(0xFF16834A),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 22),
+
+              // RINGKASAN TRANSAKSI
+              Row(
+                children: [
+                  Expanded(
+                    child: _SummaryCard(
+                      title: 'Total Riwayat',
+                      count: history.length,
+                      icon: Icons.receipt_long_rounded,
+                      color: AppTheme.primaryBlue,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _SummaryCard(
+                      title: 'Transaksi Aktif',
+                      count: activeCount,
+                      icon: Icons.local_parking_rounded,
+                      color: AppTheme.slotAvailable,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              _SummaryCard(
+                title: 'Transaksi Selesai',
+                count: completedCount,
+                icon: Icons.check_circle_outline_rounded,
+                color: AppTheme.darkBlue,
+              ),
+
+              const SizedBox(height: 26),
+
+              // DAFTAR TRANSAKSI
+              Text(
+                'Daftar Transaksi',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppTheme.darkBlue,
+                  fontWeight: FontWeight.w700,
                 ),
-              ],
-            ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // FILTER
+              Wrap(
+                spacing: 8,
+                children: [
+                  _buildFilterChip('Semua'),
+                  _buildFilterChip('Aktif'),
+                  _buildFilterChip('Selesai'),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              // DATA RIWAYAT
+              if (filteredHistory.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(30),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 48,
+                          color: Colors.blueGrey.shade300,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          history.isEmpty
+                              ? 'Belum ada transaksi parkir.'
+                              : 'Belum ada transaksi untuk status ini.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.blueGrey),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ...filteredHistory.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _HistoryCard(item: item),
+                  ),
+                ),
+
+              const SizedBox(height: 16),
+
+              // CATATAN
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F1FF),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, color: AppTheme.primaryBlue),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Riwayat parkir diambil langsung dari '
+                        'database Firebase dan diperbarui '
+                        'secara otomatis ketika transaksi berubah.',
+                        style: TextStyle(
+                          color: AppTheme.darkBlue,
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
+  // FILTER TRANSAKSI
   Widget _buildFilterChip(String label) {
     final isSelected = _selectedFilter == label;
 
@@ -228,28 +279,25 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
       selectedColor: const Color(0xFFDCEBFF),
       backgroundColor: Colors.white,
       labelStyle: TextStyle(
-        color: isSelected
-            ? AppTheme.primaryBlue
-            : Colors.blueGrey,
-        fontWeight:
-            isSelected ? FontWeight.w600 : FontWeight.normal,
+        color: isSelected ? AppTheme.primaryBlue : Colors.blueGrey,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
       ),
       side: BorderSide(
-        color: isSelected
-            ? AppTheme.primaryBlue
-            : const Color(0xFFDCE6F5),
+        color: isSelected ? AppTheme.primaryBlue : const Color(0xFFDCE6F5),
       ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
 }
 
-// MODEL RIWAYAT SEMENTARA
+// ==========================================
+// MODEL RIWAYAT PARKIR
+// ==========================================
+
 class _ParkingHistory {
   final String plate;
   final String location;
+  final String entryDate;
   final String entryTime;
   final String exitTime;
   final String status;
@@ -257,13 +305,85 @@ class _ParkingHistory {
   const _ParkingHistory({
     required this.plate,
     required this.location,
+    required this.entryDate,
     required this.entryTime,
     required this.exitTime,
     required this.status,
   });
+
+  factory _ParkingHistory.fromMap(Map<String, dynamic> data) {
+    final locationCode = (data['locationCode'] ?? '').toString().toUpperCase();
+
+    final rawStatus = (data['status'] ?? '').toString().toLowerCase();
+
+    return _ParkingHistory(
+      plate: data['vehiclePlate']?.toString() ?? 'Plat tidak tersedia',
+
+      location: locationCode == 'ICT'
+          ? 'Parkiran ICT'
+          : locationCode == 'PU'
+          ? 'Parkiran PU'
+          : 'Lokasi tidak diketahui',
+
+      entryDate: _formatDate(data['entryTime']),
+
+      entryTime: _formatTime(data['entryTime']),
+
+      exitTime: _formatTime(data['exitTime']),
+
+      status: rawStatus == 'active'
+          ? 'Aktif'
+          : rawStatus == 'completed'
+          ? 'Selesai'
+          : rawStatus == 'auto_reset'
+          ? 'Ditutup Otomatis'
+          : 'Lainnya',
+    );
+  }
 }
 
+// ==========================================
+// FORMAT TANGGAL DAN WAKTU
+// ==========================================
+
+String _formatDate(dynamic value) {
+  final date = _toDateTime(value);
+
+  if (date == null) return '-';
+
+  return '${_twoDigits(date.day)}/'
+      '${_twoDigits(date.month)}/${date.year}';
+}
+
+String _formatTime(dynamic value) {
+  final date = _toDateTime(value);
+
+  if (date == null) return '-';
+
+  return '${_twoDigits(date.hour)}:'
+      '${_twoDigits(date.minute)}';
+}
+
+DateTime? _toDateTime(dynamic value) {
+  if (value is Timestamp) {
+    return value.toDate().toLocal();
+  }
+
+  if (value is DateTime) {
+    return value.toLocal();
+  }
+
+  return null;
+}
+
+String _twoDigits(int number) {
+  return number.toString().padLeft(2, '0');
+}
+
+// ==========================================
 // KARTU RINGKASAN
+// ==========================================
+
 class _SummaryCard extends StatelessWidget {
   final String title;
   final int count;
@@ -298,10 +418,7 @@ class _SummaryCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               title,
-              style: const TextStyle(
-                color: Colors.blueGrey,
-                fontSize: 11,
-              ),
+              style: const TextStyle(color: Colors.blueGrey, fontSize: 11),
             ),
           ],
         ),
@@ -310,21 +427,25 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
+// ==========================================
 // KARTU DETAIL TRANSAKSI
+// ==========================================
+
 class _HistoryCard extends StatelessWidget {
   final _ParkingHistory item;
 
-  const _HistoryCard({
-    required this.item,
-  });
+  const _HistoryCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
     final isActive = item.status == 'Aktif';
+    final isAutoReset = item.status == 'Ditutup Otomatis';
 
     final statusColor = isActive
         ? AppTheme.slotAvailable
-        : AppTheme.primaryBlue;
+        : isAutoReset
+        ? AppTheme.primaryBlue
+        : AppTheme.warning;
 
     return Card(
       child: Padding(
@@ -364,10 +485,10 @@ class _HistoryCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        item.location,
+                        '${item.location} • ${item.entryDate}',
                         style: const TextStyle(
                           color: Colors.blueGrey,
-                          fontSize: 12,
+                          fontSize: 11,
                         ),
                       ),
                     ],
@@ -426,7 +547,10 @@ class _HistoryCard extends StatelessWidget {
   }
 }
 
+// ==========================================
 // INFORMASI WAKTU
+// ==========================================
+
 class _TimeInfo extends StatelessWidget {
   final String label;
   final String time;
@@ -445,19 +569,12 @@ class _TimeInfo extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(
-              icon,
-              color: Colors.blueGrey,
-              size: 16,
-            ),
+            Icon(icon, color: Colors.blueGrey, size: 16),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
                 label,
-                style: const TextStyle(
-                  color: Colors.blueGrey,
-                  fontSize: 11,
-                ),
+                style: const TextStyle(color: Colors.blueGrey, fontSize: 11),
               ),
             ),
           ],
